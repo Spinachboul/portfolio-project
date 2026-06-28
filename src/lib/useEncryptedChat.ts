@@ -8,6 +8,8 @@ import {
   decryptMessage,
   exportKeyPairForStorage,
   importKeyPairFromStorage,
+  deriveConversationKey,
+  getChatSecret,
   type KeyPair,
 } from './crypto';
 
@@ -111,7 +113,7 @@ export function useEncryptedChat() {
 
   // Load + decrypt messages for the current conversation.
   const loadMessages = useCallback(async () => {
-    if (!conversation || !sharedKeyRef.current) return;
+    if (!conversation) return;
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -119,15 +121,24 @@ export function useEncryptedChat() {
       .order('created_at', { ascending: true });
     if (!data) return;
     const dec: DecryptedMessage[] = [];
+    const fallbackKey = await deriveConversationKey(getChatSecret(), conversation.id);
     for (const m of data as Message[]) {
       try {
-        const plaintext = await decryptMessage(sharedKeyRef.current!, {
+        const plaintext = await decryptMessage(sharedKeyRef.current ?? fallbackKey, {
           ciphertext: m.ciphertext,
           iv: m.iv,
         });
         dec.push({ ...m, plaintext });
       } catch {
-        dec.push({ ...m, plaintext: '[unable to decrypt]' });
+        try {
+          const plaintext = await decryptMessage(fallbackKey, {
+            ciphertext: m.ciphertext,
+            iv: m.iv,
+          });
+          dec.push({ ...m, plaintext });
+        } catch {
+          dec.push({ ...m, plaintext: '[unable to decrypt]' });
+        }
       }
     }
     setMessages(dec);
@@ -192,10 +203,11 @@ export function useEncryptedChat() {
   // Send an encrypted message.
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {
-      if (!conversation || !sharedKeyRef.current || !text.trim()) return false;
+      if (!conversation || !text.trim()) return false;
       setSending(true);
       try {
-        const payload = await encryptMessage(sharedKeyRef.current, text.trim());
+        const activeKey = sharedKeyRef.current ?? (await deriveConversationKey(getChatSecret(), conversation.id));
+        const payload = await encryptMessage(activeKey, text.trim());
         const { error: insErr } = await supabase.from('messages').insert({
           conversation_id: conversation.id,
           sender: 'visitor',

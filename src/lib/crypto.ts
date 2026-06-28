@@ -92,6 +92,21 @@ export async function deriveSharedKey(
   );
 }
 
+export function getChatSecret(): string {
+  return (
+    import.meta.env.VITE_CHAT_SECRET ||
+    import.meta.env.VITE_ENCRYPTION_SECRET ||
+    import.meta.env.VITE_CHAT_KEY ||
+    'devjournal-chat-secret'
+  ).trim();
+}
+
+export async function deriveConversationKey(secret: string, conversationId: string): Promise<CryptoKey> {
+  const seed = new TextEncoder().encode(`${secret}:${conversationId}`);
+  const keyMaterial = await crypto.subtle.digest('SHA-256', seed);
+  return crypto.subtle.importKey('raw', keyMaterial, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
 /* ---------- message encryption ---------- */
 
 export type EncryptedPayload = {

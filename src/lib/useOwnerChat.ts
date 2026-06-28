@@ -8,6 +8,8 @@ import {
   decryptMessage,
   exportKeyPairForStorage,
   importKeyPairFromStorage,
+  deriveConversationKey,
+  getChatSecret,
   type KeyPair,
   type StoredKeyPair,
 } from './crypto';
@@ -118,14 +120,14 @@ export function useOwnerChat() {
   const openConversation = useCallback(async (conv: Conversation) => {
     setActiveConv(conv);
     setError(null);
-    if (!keyPair) return;
     try {
       let shared = sharedKeysRef.current.get(conv.id);
-      if (!shared) {
+      if (!shared && keyPair) {
         const visitorPub = await importPublicKey(conv.visitor_public_key);
         shared = await deriveSharedKey(keyPair.privateKey, visitorPub);
         sharedKeysRef.current.set(conv.id, shared);
       }
+      const fallbackKey = await deriveConversationKey(getChatSecret(), conv.id);
       const { data } = await supabase
         .from('messages')
         .select('*')
@@ -135,10 +137,15 @@ export function useOwnerChat() {
       const dec: DecryptedMessage[] = [];
       for (const m of data as Message[]) {
         try {
-          const plaintext = await decryptMessage(shared, { ciphertext: m.ciphertext, iv: m.iv });
+          const plaintext = await decryptMessage(shared ?? fallbackKey, { ciphertext: m.ciphertext, iv: m.iv });
           dec.push({ ...m, plaintext });
         } catch {
-          dec.push({ ...m, plaintext: '[unable to decrypt — wrong key?]' });
+          try {
+            const plaintext = await decryptMessage(fallbackKey, { ciphertext: m.ciphertext, iv: m.iv });
+            dec.push({ ...m, plaintext });
+          } catch {
+            dec.push({ ...m, plaintext: '[unable to decrypt — wrong key?]' });
+          }
         }
       }
       setMessages(dec);
@@ -165,12 +172,12 @@ export function useOwnerChat() {
 
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {
-      if (!activeConv) return false;
+      if (!activeConv || !text.trim()) return false;
       const shared = sharedKeysRef.current.get(activeConv.id);
-      if (!shared || !text.trim()) return false;
       setSending(true);
       try {
-        const payload = await encryptMessage(shared, text.trim());
+        const activeKey = shared ?? (await deriveConversationKey(getChatSecret(), activeConv.id));
+        const payload = await encryptMessage(activeKey, text.trim());
         const { error: insErr } = await supabase.from('messages').insert({
           conversation_id: activeConv.id,
           sender: 'owner',
