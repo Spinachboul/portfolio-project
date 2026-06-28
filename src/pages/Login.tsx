@@ -4,9 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useRouter } from '../lib/router';
 
 export default function Login() {
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, user } = useAuth();
   const { navigate } = useRouter();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +19,7 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const fn = mode === 'signin' ? signIn : signUp;
-    const { error: err } = await fn(email, password);
+    const { error: err } = await signIn(email, password);
     setBusy(false);
     if (err) {
       setError(err);
@@ -38,9 +36,7 @@ export default function Login() {
             <PenTool size={16} />
           </span>
           <div>
-            <h1 className="font-serif text-xl font-semibold">
-              {mode === 'signin' ? 'Owner sign in' : 'Create owner account'}
-            </h1>
+            <h1 className="font-serif text-xl font-semibold">Owner sign in</h1>
             <p className="text-xs text-muted">Manage posts, blueprint, and messages.</p>
           </div>
         </div>
@@ -73,7 +69,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
                 className="input pl-9"
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                autoComplete="current-password"
               />
             </div>
           </div>
@@ -87,35 +83,9 @@ export default function Login() {
 
           <button type="submit" disabled={busy} className="btn-primary w-full">
             {busy ? <Loader2 size={16} className="animate-spin" /> : null}
-            {mode === 'signin' ? 'Sign in' : 'Create account'}
+            Sign in
           </button>
         </form>
-
-        <div className="mt-5 text-center text-sm text-muted">
-          {mode === 'signin' ? (
-            <>
-              Need an account?{' '}
-              <button
-                type="button"
-                onClick={() => { setMode('signup'); setError(null); }}
-                className="text-accent font-medium link-underline"
-              >
-                Sign up
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <button
-                type="button"
-                onClick={() => { setMode('signin'); setError(null); }}
-                className="text-accent font-medium link-underline"
-              >
-                Sign in
-              </button>
-            </>
-          )}
-        </div>
       </div>
       <p className="mt-4 text-center text-xs text-muted">
         Only the site owner needs an account. Visitors can read and message without signing in.
