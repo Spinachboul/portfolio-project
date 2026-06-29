@@ -1,10 +1,10 @@
-import { Github, Linkedin, Twitter, PenTool } from 'lucide-react';
+import { Github, Linkedin, PenTool } from 'lucide-react';
 import { useRouter } from '../lib/router';
 
 const SOCIALS = [
-  { href: 'https://github.com', label: 'GitHub', Icon: Github },
-  { href: 'https://linkedin.com', label: 'LinkedIn', Icon: Linkedin },
-  { href: 'https://x.com', label: 'X', Icon: Twitter },
+  { href: 'https://github.com/Spinachboul', label: 'GitHub', Icon: Github },
+  { href: 'https://linkedin.com/mriduljainindia', label: 'LinkedIn', Icon: Linkedin },
+  // { href: 'https://x.com', label: 'X', Icon: Twitter },
 ];
 
 export default function Footer() {
