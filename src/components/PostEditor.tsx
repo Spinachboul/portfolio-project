@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Save, Eye, Pencil, Loader2, AlertCircle, ArrowLeft, Trash2 } from 'lucide-react';
 import { supabase, type BlogPost } from '../lib/supabase';
 import { estimateReadingTime, slugify } from '../lib/markdown';
@@ -11,6 +11,7 @@ type Props = {
 };
 
 export default function PostEditor({ post, onSaved, onBack }: Props) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState(post?.title ?? '');
   const [slug, setSlug] = useState(post?.slug ?? '');
   const [excerpt, setExcerpt] = useState(post?.excerpt ?? '');
@@ -21,6 +22,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset form whenever the post prop changes (handles navigating between posts or to "New Post")
   useEffect(() => {
     if (post) {
       setTitle(post.title);
@@ -29,8 +31,19 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
       setContent(post.content);
       setTags((post.tags ?? []).join(', '));
       setPublished(post.published);
+    } else {
+      setTitle('');
+      setSlug('');
+      setExcerpt('');
+      setContent('');
+      setTags('');
+      setPublished(false);
     }
+    setView('write');
+    setError(null);
   }, [post]);
+
+  const clearError = () => setError(null);
 
   const save = async (publish: boolean) => {
     setError(null);
@@ -38,8 +51,10 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
       setError('Title and content are required.');
       return;
     }
+
     setBusy(true);
     const finalSlug = (slug.trim() || slugify(title)).toLowerCase();
+    
     const body = {
       title: title.trim(),
       slug: finalSlug,
@@ -47,34 +62,108 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
       content,
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       published: publish,
-      published_at: publish ? (post?.published_at ?? new Date().toISOString()) : null,
+      // Keep the original published_at date if it exists, otherwise set to now
+      published_at: publish ? (post?.published_at || new Date().toISOString()) : null,
       reading_time_min: estimateReadingTime(content),
     };
+
     let result;
     if (post) {
       result = await supabase.from('blog_posts').update(body).eq('id', post.id).select('*').single();
     } else {
       result = await supabase.from('blog_posts').insert(body).select('*').single();
     }
+
     setBusy(false);
+
     if (result.error) {
       setError(result.error.message);
       return;
     }
+
     onSaved();
   };
 
   const del = async () => {
     if (!post) return;
     if (!confirm('Delete this post? This cannot be undone.')) return;
+    
     setBusy(true);
     const { error: delErr } = await supabase.from('blog_posts').delete().eq('id', post.id);
     setBusy(false);
+    
     if (delErr) {
       setError(delErr.message);
       return;
     }
+    
     onSaved();
+  };
+
+  // Helper to inject text at a specific cursor position safely
+  const insertAtCursor = (text: string, cursorStart: number, cursorEnd: number) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setContent((prev) => prev + text);
+      return;
+    }
+
+    // Use functional state update to prevent overwriting text if user typed during upload
+    setContent((prev) => prev.substring(0, cursorStart) + text + prev.substring(cursorEnd));
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = cursorStart + text.length;
+      textarea.selectionStart = textarea.selectionEnd = newPos;
+    });
+  };
+
+  const uploadAndInsertImage = async (file: File, cursorStart: number, cursorEnd: number) => {
+    if (!file.type.startsWith('image/')) return;
+
+    setBusy(true);
+    const fileName = `${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage.from('blog-images').upload(fileName, file);
+    setBusy(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    // Safely destructure the public URL (Supabase v2 syntax)
+    const { data: { publicUrl } } = supabase.storage.from('blog-images').getPublicUrl(fileName);
+    const markdown = `\n![${file.name}](${publicUrl})\n`;
+
+    insertAtCursor(markdown, cursorStart, cursorEnd);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    // Capture cursor synchronously BEFORE the async upload
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? content.length;
+    const end = textarea?.selectionEnd ?? content.length;
+
+    await uploadAndInsertImage(file, start, end);
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = e.clipboardData.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    e.preventDefault();
+
+    // Capture cursor synchronously BEFORE the async upload
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? content.length;
+    const end = textarea?.selectionEnd ?? content.length;
+
+    await uploadAndInsertImage(file, start, end);
   };
 
   return (
@@ -89,7 +178,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
       </button>
 
       <div className="card">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-border">
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -135,7 +224,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
               className="btn-primary h-8"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {published ? 'Update & publish' : 'Publish'}
+              {post ? (published ? 'Update' : 'Publish') : 'Publish'}
             </button>
           </div>
         </div>
@@ -153,7 +242,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => { setTitle(e.target.value); clearError(); }}
                 placeholder="A great title"
                 className="input"
               />
@@ -163,7 +252,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
               <input
                 type="text"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                onChange={(e) => { setSlug(e.target.value); clearError(); }}
                 placeholder="auto-generated-from-title"
                 className="input font-mono"
               />
@@ -174,7 +263,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
             <input
               type="text"
               value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
+              onChange={(e) => { setExcerpt(e.target.value); clearError(); }}
               placeholder="One-line summary shown in the post list"
               className="input"
             />
@@ -184,7 +273,7 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
             <input
               type="text"
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              onChange={(e) => { setTags(e.target.value); clearError(); }}
               placeholder="typescript, react, devops"
               className="input"
             />
@@ -196,15 +285,19 @@ export default function PostEditor({ post, onSaved, onBack }: Props) {
                 Content (Markdown — supports code blocks with syntax highlighting)
               </label>
               <textarea
+                ref={textareaRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => { setContent(e.target.value); clearError(); }}
+                onDrop={handleDrop}
+                onPaste={handlePaste}
+                onDragOver={(e) => e.preventDefault()}
                 rows={20}
-                placeholder={'# Hello world\n\nWrite your post in **markdown**.\n\n```ts\nconst x = 42;\n```'}
+                placeholder={'# Hello world\n\nWrite your post...'}
                 className="input font-mono text-sm leading-relaxed resize-y"
               />
             </div>
           ) : (
-            <div className="rounded-lg border border-border p-6 min-h-[24rem] bg-surface">
+            <div className="rounded-lg border border-border p-6 min-h-[24rem] bg-surface overflow-y-auto">
               {content.trim() ? (
                 <MarkdownView content={content} />
               ) : (
