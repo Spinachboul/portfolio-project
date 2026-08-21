@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -8,20 +8,20 @@ import {
   X,
   ArrowUp,
   ArrowDown,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { supabase, type BlueprintEntry } from '../lib/supabase';
+import { supabase, type BlueprintEntry } from "../lib/supabase";
 
-const KINDS: { value: BlueprintEntry['kind']; label: string }[] = [
-  { value: 'experience', label: 'Experience' },
-  { value: 'education', label: 'Education' },
-  { value: 'milestone', label: 'Milestone' },
-  { value: 'moment', label: 'Moment' },
+const KINDS: { value: BlueprintEntry["kind"]; label: string }[] = [
+  { value: "experience", label: "Experience" },
+  { value: "education", label: "Education" },
+  { value: "milestone", label: "Milestone" },
+  { value: "moment", label: "Moment" },
 ];
 
 type Draft = {
   id?: string;
-  kind: BlueprintEntry['kind'];
+  kind: BlueprintEntry["kind"];
   title: string;
   organization: string;
   description: string;
@@ -31,19 +31,14 @@ type Draft = {
 };
 
 const EMPTY: Draft = {
-  kind: 'experience',
-  title: '',
-  organization: '',
-  description: '',
-  start_date: '',
-  end_date: '',
+  kind: "experience",
+  title: "",
+  organization: "",
+  description: "",
+  start_date: "",
+  end_date: "",
   sort_order: 0,
 };
-
-/**
- * Format database date:
- * 2024-07-01 -> Jul 2024
- */
 const formatDate = (date: string | null | undefined) => {
   if (!date) return null;
 
@@ -53,26 +48,21 @@ const formatDate = (date: string | null | undefined) => {
     return date;
   }
 
-  return parsed.toLocaleDateString('en-US', {
-    month: 'short',
-    year: 'numeric',
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
   });
 };
 
-/**
- * Display a date range:
- * Jul 2024 → Present
- * Jan 2022 → Jun 2024
- */
 const formatDateRange = (
   startDate: string | null | undefined,
-  endDate: string | null | undefined
+  endDate: string | null | undefined,
 ) => {
   const start = formatDate(startDate);
   const end = formatDate(endDate);
 
   if (!start && !end) {
-    return 'Date not specified';
+    return "Date not specified";
   }
 
   if (!start) {
@@ -92,25 +82,15 @@ export default function BlueprintEditor() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  /**
-   * Load entries.
-   *
-   * Primary ordering:
-   * 1. sort_order
-   * 2. start_date
-   *
-   * This means manual ordering is respected.
-   */
   const load = async () => {
     setLoading(true);
     setError(null);
 
     const { data, error: loadError } = await supabase
-      .from('blueprint_entries')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('start_date', { ascending: false });
+      .from("blueprint_entries")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("start_date", { ascending: false });
 
     if (loadError) {
       setError(loadError.message);
@@ -133,7 +113,7 @@ export default function BlueprintEditor() {
     if (!editing) return;
 
     if (!editing.title.trim()) {
-      setError('Title is required.');
+      setError("Title is required.");
       return;
     }
 
@@ -154,24 +134,20 @@ export default function BlueprintEditor() {
 
     if (editing.id) {
       res = await supabase
-        .from('blueprint_entries')
+        .from("blueprint_entries")
         .update(body)
-        .eq('id', editing.id);
+        .eq("id", editing.id);
     } else {
-      /*
-       * New entries go to the end of the current list.
-       */
+     
       const nextSortOrder =
         entries.length > 0
           ? Math.max(...entries.map((entry) => entry.sort_order ?? 0)) + 1
           : 0;
 
-      res = await supabase
-        .from('blueprint_entries')
-        .insert({
-          ...body,
-          sort_order: nextSortOrder,
-        });
+      res = await supabase.from("blueprint_entries").insert({
+        ...body,
+        sort_order: nextSortOrder,
+      });
     }
 
     setBusy(false);
@@ -184,20 +160,16 @@ export default function BlueprintEditor() {
     setEditing(null);
     await load();
   };
-
-  /**
-   * Delete an entry.
-   */
   const del = async (id: string) => {
-    if (!confirm('Delete this entry?')) return;
+    if (!confirm("Delete this entry?")) return;
 
     setBusy(true);
     setError(null);
 
     const { error: deleteError } = await supabase
-      .from('blueprint_entries')
+      .from("blueprint_entries")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (deleteError) {
       setError(deleteError.message);
@@ -208,21 +180,6 @@ export default function BlueprintEditor() {
     setBusy(false);
     await load();
   };
-
-  /**
-   * Move an entry up/down by swapping its sort_order
-   * with the adjacent entry.
-   *
-   * Example:
-   *
-   * A = 0
-   * B = 1
-   *
-   * Move B up:
-   *
-   * B = 0
-   * A = 1
-   */
   const move = async (index: number, direction: -1 | 1) => {
     const targetIndex = index + direction;
 
@@ -241,19 +198,16 @@ export default function BlueprintEditor() {
     setBusy(true);
     setError(null);
 
-    /*
-     * Use temporary value first so we don't end up
-     * with a unique constraint collision if the DB
-     * has sort_order uniqueness enabled.
-     */
-    const temporaryOrder = -Date.now();
+   
+    const temporaryOrder = -2147483648;
 
+    
     const firstUpdate = await supabase
-      .from('blueprint_entries')
+      .from("blueprint_entries")
       .update({
         sort_order: temporaryOrder,
       })
-      .eq('id', currentEntry.id);
+      .eq("id", currentEntry.id);
 
     if (firstUpdate.error) {
       setError(firstUpdate.error.message);
@@ -261,36 +215,35 @@ export default function BlueprintEditor() {
       return;
     }
 
+    
     const secondUpdate = await supabase
-      .from('blueprint_entries')
+      .from("blueprint_entries")
       .update({
         sort_order: currentEntry.sort_order,
       })
-      .eq('id', targetEntry.id);
+      .eq("id", targetEntry.id);
 
     if (secondUpdate.error) {
-      /*
-       * Try to restore the original value if the second
-       * update fails.
-       */
+      
       await supabase
-        .from('blueprint_entries')
+        .from("blueprint_entries")
         .update({
           sort_order: currentEntry.sort_order,
         })
-        .eq('id', currentEntry.id);
+        .eq("id", currentEntry.id);
 
       setError(secondUpdate.error.message);
       setBusy(false);
       return;
     }
 
+    
     const thirdUpdate = await supabase
-      .from('blueprint_entries')
+      .from("blueprint_entries")
       .update({
         sort_order: targetEntry.sort_order,
       })
-      .eq('id', currentEntry.id);
+      .eq("id", currentEntry.id);
 
     if (thirdUpdate.error) {
       setError(thirdUpdate.error.message);
@@ -302,19 +255,15 @@ export default function BlueprintEditor() {
     setBusy(false);
     await load();
   };
-
-  /**
-   * Open edit modal.
-   */
   const editEntry = (entry: BlueprintEntry) => {
     setEditing({
       id: entry.id,
       kind: entry.kind,
       title: entry.title,
-      organization: entry.organization ?? '',
-      description: entry.description ?? '',
-      start_date: entry.start_date ?? '',
-      end_date: entry.end_date ?? '',
+      organization: entry.organization ?? "",
+      description: entry.description ?? "",
+      start_date: entry.start_date ?? "",
+      end_date: entry.end_date ?? "",
       sort_order: entry.sort_order,
     });
 
@@ -325,9 +274,7 @@ export default function BlueprintEditor() {
     <div className="animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-serif text-xl font-semibold">
-          Blueprint entries
-        </h2>
+        <h2 className="font-serif text-xl font-semibold">Blueprint entries</h2>
 
         <button
           type="button"
@@ -337,9 +284,8 @@ export default function BlueprintEditor() {
               ...EMPTY,
               sort_order:
                 entries.length > 0
-                  ? Math.max(
-                      ...entries.map((entry) => entry.sort_order ?? 0)
-                    ) + 1
+                  ? Math.max(...entries.map((entry) => entry.sort_order ?? 0)) +
+                    1
                   : 0,
             });
           }}
@@ -371,10 +317,7 @@ export default function BlueprintEditor() {
       ) : (
         <div className="space-y-2">
           {entries.map((entry, index) => (
-            <div
-              key={entry.id}
-              className="card p-4 flex items-start gap-3"
-            >
+            <div key={entry.id} className="card p-4 flex items-start gap-3">
               {/* Entry content */}
               <div className="flex-1 min-w-0">
                 {/* Kind + organization */}
@@ -391,16 +334,11 @@ export default function BlueprintEditor() {
                 </div>
 
                 {/* Title */}
-                <p className="font-semibold">
-                  {entry.title}
-                </p>
+                <p className="font-semibold">{entry.title}</p>
 
                 {/* Date */}
                 <p className="text-sm text-muted mt-1">
-                  {formatDateRange(
-                    entry.start_date,
-                    entry.end_date
-                  )}
+                  {formatDateRange(entry.start_date, entry.end_date)}
                 </p>
 
                 {/* Description */}
@@ -428,9 +366,7 @@ export default function BlueprintEditor() {
                 <button
                   type="button"
                   onClick={() => move(index, 1)}
-                  disabled={
-                    index === entries.length - 1 || busy
-                  }
+                  disabled={index === entries.length - 1 || busy}
                   className="btn-ghost h-8 w-8 !px-0 disabled:opacity-30 disabled:cursor-not-allowed"
                   title="Move down"
                 >
@@ -477,7 +413,7 @@ export default function BlueprintEditor() {
             {/* Modal header */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-serif text-lg font-semibold">
-                {editing.id ? 'Edit entry' : 'New entry'}
+                {editing.id ? "Edit entry" : "New entry"}
               </h3>
 
               <button
@@ -501,17 +437,13 @@ export default function BlueprintEditor() {
                   onChange={(event) =>
                     setEditing({
                       ...editing,
-                      kind: event.target
-                        .value as BlueprintEntry['kind'],
+                      kind: event.target.value as BlueprintEntry["kind"],
                     })
                   }
                   className="input"
                 >
                   {KINDS.map((kind) => (
-                    <option
-                      key={kind.value}
-                      value={kind.value}
-                    >
+                    <option key={kind.value} value={kind.value}>
                       {kind.label}
                     </option>
                   ))}
@@ -611,10 +543,7 @@ export default function BlueprintEditor() {
                   </p>
 
                   <p className="text-sm font-medium">
-                    {formatDateRange(
-                      editing.start_date,
-                      editing.end_date
-                    )}
+                    {formatDateRange(editing.start_date, editing.end_date)}
                   </p>
                 </div>
               )}
@@ -658,8 +587,8 @@ export default function BlueprintEditor() {
                 />
 
                 <p className="text-[11px] text-muted mt-1">
-                  Lower numbers appear first. You can also use the
-                  ↑ / ↓ buttons.
+                  Lower numbers appear first. You can also use the ↑ / ↓
+                  buttons.
                 </p>
               </div>
             </div>
@@ -681,13 +610,7 @@ export default function BlueprintEditor() {
                 disabled={busy}
                 className="btn-primary h-9"
               >
-                {busy ? (
-                  <Loader2
-                    size={15}
-                    className="animate-spin"
-                  />
-                ) : null}
-
+                {busy ? <Loader2 size={15} className="animate-spin" /> : null}
                 Save
               </button>
             </div>
