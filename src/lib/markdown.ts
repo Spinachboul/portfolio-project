@@ -1,6 +1,8 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
+import markedKatex  from 'marked-katex-extension';
+import 'katex/dist/katex.min.css';
 
 // Configure marked with a custom code block renderer that adds a language
 // label and a copy button. Highlighting is applied via highlight.js.
@@ -73,3 +75,15 @@ export function slugify(s: string): string {
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+marked.use(
+  markedKatex({
+    throwOnError: false,
+  })
+);
+
+marked.setOptions({
+  renderer,
+  gfm: true,
+  breaks: false,
+});
