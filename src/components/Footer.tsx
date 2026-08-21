@@ -39,7 +39,7 @@ export default function Footer() {
         </div>
 
         <p className="text-xs text-muted">
-          &copy; {new Date().getFullYear()} Dev Journal. Built with ❤️.
+          &copy; {new Date().getFullYear()} Dev Journal. Built with ❤️
         </p>
       </div>
     </footer>
