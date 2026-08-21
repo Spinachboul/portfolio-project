@@ -143,8 +143,7 @@ export default function Blueprint() {
         </h1>
 
         <p className="mt-3 text-muted leading-relaxed max-w-xl">
-          The path so far — roles, milestones, education, and the
-          moments that shaped the journey.
+          Blueprint of my professional career.
         </p>
       </header>
 

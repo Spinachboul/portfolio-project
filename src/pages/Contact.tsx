@@ -7,7 +7,7 @@ import { publicKeyFingerprint } from '../lib/crypto';
 
 const SOCIALS = [
   { href: 'https://github.com/Spinachboul', label: 'GitHub', handle: '@Spinachboul', Icon: Github, desc: 'Open source & side projects' },
-  { href: 'https://linkedin.com/in/mriduljainindia', label: 'LinkedIn', handle: '/in/mriduljainindia', Icon: Linkedin, desc: 'Professional background' },
+  { href: 'https://www.linkedin.com/in/mriduljainindia/', label: 'LinkedIn', handle: '/in/mriduljainindia', Icon: Linkedin, desc: 'Professional background' },
   // { href: 'https://x.com', label: 'X', handle: '@yourhandle', Icon: Twitter, desc: 'Thoughts & updates' },
 ];
 
